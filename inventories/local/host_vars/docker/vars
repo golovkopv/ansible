@@ -1,0 +1,15 @@
+---
+
+# ansible-docker role vars
+#############################################################################
+
+docker_tls:
+  enabled: true
+  path: /etc/ssl/docker
+  country_name: 'RU'
+  state_or_province_name: 'Kaliningrad'
+  locality_name: 'Moscow'
+  organization_name: 'Pal'
+  organizational_unit_name: 'IT'
+  common_name: '{{ inventory_hostname }}'
+  email_address: 'golovkopv@gmail.com'

@@ -1,0 +1,157 @@
+---
+
+- name: Docker TLS | Create tls files path on target host
+  file: 
+    state: directory
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}'
+    owner: root
+    group: root
+    mode: 0700
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create a CA key
+  openssl_privatekey:
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca-key.pem'
+    owner: root
+    group: root
+    mode: 0400
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create CA certificate signing request (CSR)
+  openssl_csr:
+    common_name: 'Root CA'
+    country_name: '{{ docker_tls.country_name | default("RU") }}'
+    state_or_province_name: '{{ docker_tls.state_or_province_name | default(omit) }}'
+    locality_name: '{{ docker_tls.locality_name | default("Moscow") }}'
+    organization_name: '{{ docker_tls.organization_name | default("Someorganization") }}'
+    organizational_unit_name: '{{ docker_tls.organizational_unit_name | default("Someunit") }}'
+    email_address: '{{ docker_tls.email_address | default("admin@example.com") }}'
+    key_usage:
+      - digitalSignature
+      - keyCertSign 
+      - cRLSign
+    key_usage_critical: yes
+    basic_constraints: 
+      - CA:TRUE
+    basic_constraints_critical: yes
+    use_common_name_for_san: false
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca.csr'
+    privatekey_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca-key.pem'
+    owner: root
+    group: root
+    mode: 0444
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create CA certificate
+  openssl_certificate:
+    csr_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca.csr'
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca.pem'
+    provider: selfsigned
+    selfsigned_create_subject_key_identifier: always_create
+    privatekey_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca-key.pem'
+    owner: root
+    group: root
+    mode: 0444
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create a server key
+  openssl_privatekey:
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/server-key.pem'
+    owner: root
+    group: root
+    mode: 0400
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create server certificate signing request
+  openssl_csr:
+    common_name: '{{ docker_tls.common_name | default(inventory_hostname) }}'
+    subject_alt_name: 
+      - DNS:{{ docker_tls.common_name | default(inventory_hostname) }}
+      - IP:127.0.0.1
+      - IP:{{ ansible_host }}
+    extended_key_usage:
+      - serverAuth
+    extended_key_usage_critical: yes
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/server.csr'
+    privatekey_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/server-key.pem'
+    owner: root
+    group: root
+    mode: 0444
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create server certificate
+  openssl_certificate:
+    csr_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/server.csr'
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/server-cert.pem'
+    provider: ownca
+    ownca_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca.pem'
+    ownca_create_subject_key_identifier: always_create
+    ownca_privatekey_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca-key.pem'
+    owner: root
+    group: root
+    mode: 0444
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create a client key
+  openssl_privatekey:
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/client-key.pem'
+    owner: root
+    group: root
+    mode: 0400
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create client certificate signing request
+  openssl_csr:
+    common_name: 'client'
+    extended_key_usage:
+      - clientAuth
+    extended_key_usage_critical: yes
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/client.csr'
+    privatekey_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/client-key.pem'
+    owner: root
+    group: root
+    mode: 0444
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Create client certificate
+  openssl_certificate:
+    csr_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/client.csr'
+    path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/client-cert.pem'
+    provider: ownca
+    ownca_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca.pem'
+    ownca_create_subject_key_identifier: always_create
+    ownca_privatekey_path: '{{ docker_tls.path | default("/etc/ssl/docker") }}/ca-key.pem'
+    owner: root
+    group: root
+    mode: 0444
+  tags:
+    - docker
+    - tls
+
+- name: Docker TLS | Update docker systemd script to use TLS
+  lineinfile:
+    path: '{{ docker_systemd_script_path | default("/lib/systemd/system/docker.service") }}'
+    regexp: '^ExecStart='
+    line: 'ExecStart=/usr/bin/dockerd -H fd:// --containerd=/run/containerd/containerd.sock --tlsverify --tlscacert=/etc/ssl/docker/ca.pem --tlscert=/etc/ssl/docker/server-cert.pem --tlskey=/etc/ssl/docker/server-key.pem -H=0.0.0.0:2376'
+  notify: restart docker
+  tags:
+    - docker
+    - tls

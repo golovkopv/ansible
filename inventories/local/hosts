@@ -1,0 +1,9 @@
+[servers]
+server00
+server01
+server02
+#server03
+
+[docker]
+server01
+server02

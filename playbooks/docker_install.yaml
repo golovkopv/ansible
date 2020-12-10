@@ -1,0 +1,6 @@
+- hosts: docker
+  remote_user: root
+  become: yas
+  roles:
+   - role: ansible-docker
+     kernel_update_and_reboot_permitted: yes

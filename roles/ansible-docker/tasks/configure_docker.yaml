@@ -1,0 +1,13 @@
+---
+
+- name: Configure docker | Copy daemon.json configuration file
+  template:
+    src: 'daemon.json.j2'
+    dest: '/etc/docker/daemon.json'
+    owner: 'root'
+    group: 'root'
+    mode: 0664
+  notify: restart docker
+  tags:
+    - docker
+    - configure
